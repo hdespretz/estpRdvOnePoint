@@ -431,38 +431,33 @@
         </div>
     </div>
 
-    <script type="module">
-        // Configuration Firebase modulaire (moderne)
-        // Importation depuis CDN
-        import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js';
-        import { getDatabase, ref, set, get, onValue } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js';
-
+    <script>
         // Configuration Firebase (à personnaliser avec vos clés)
         const firebaseConfig = {
-            apiKey: "AIzaSyAeZ6V3aRT7WViK4q0Vu997sBtPc2OL-Z0",
+            apiKey: "VOTRE_API_KEY",
             authDomain: "rdv-onepoint.firebaseapp.com",
-            databaseURL: "https://rdv-onepoint-default-rtdb.europe-west1.firebasedatabase.app",
+            databaseURL: "https://rdv-onepoint-default-rtdb.europe-west1.firebasedatabase.app/",
             projectId: "rdv-onepoint",
-            storageBucket: "rdv-onepoint.firebasestorage.app",
-            messagingSenderId: "598781382226",
-            appId: "1:598781382226:web:7ffbbe4a60d0159cca998b"
+            storageBucket: "rdv-onepoint.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123456789:web:abcdef123456"
         };
 
         // Variables globales
         let app, database;
         let useFirebase = false; // Basculer vers true quand Firebase est configuré
         
-        // Initialiser Firebase si configuré
-        try {
-            if (firebaseConfig.apiKey !== "AIzaSyAeZ6V3aRT7WViK4q0Vu997sBtPc2OL-Z") {
-                app = initializeApp(firebaseConfig);
-                database = getDatabase(app);
+        // Initialiser Firebase si configuré (version simplifiée pour compatibilité)
+        if (typeof firebase !== 'undefined' && firebaseConfig.apiKey !== "VOTRE_API_KEY") {
+            try {
+                app = firebase.initializeApp(firebaseConfig);
+                database = firebase.database();
                 useFirebase = true;
                 console.log("Firebase initialisé avec succès");
+            } catch (error) {
+                console.log("Firebase non configuré, utilisation du stockage local");
+                useFirebase = false;
             }
-        } catch (error) {
-            console.log("Firebase non configuré, utilisation du stockage local");
-            useFirebase = false;
         }
 
         // Données des collègues
@@ -513,8 +508,7 @@
         async function loadAppointments() {
             if (useFirebase) {
                 try {
-                    const appointmentsRef = ref(database, 'appointments');
-                    const snapshot = await get(appointmentsRef);
+                    const snapshot = await database.ref('appointments').once('value');
                     appointments = snapshot.val() || [];
                     console.log("Données chargées depuis Firebase:", appointments.length, "rendez-vous");
                     return appointments;
@@ -534,8 +528,7 @@
         async function saveAppointments() {
             if (useFirebase) {
                 try {
-                    const appointmentsRef = ref(database, 'appointments');
-                    await set(appointmentsRef, appointments);
+                    await database.ref('appointments').set(appointments);
                     console.log("Données sauvegardées dans Firebase");
                     // Sauvegarde locale de backup
                     localStorage.setItem('appointments', JSON.stringify(appointments));
@@ -555,8 +548,7 @@
         // Écouter les changements en temps réel (Firebase)
         function setupRealtimeListener() {
             if (useFirebase) {
-                const appointmentsRef = ref(database, 'appointments');
-                onValue(appointmentsRef, (snapshot) => {
+                database.ref('appointments').on('value', (snapshot) => {
                     const newAppointments = snapshot.val() || [];
                     if (JSON.stringify(newAppointments) !== JSON.stringify(appointments)) {
                         appointments = newAppointments;
