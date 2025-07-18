@@ -315,7 +315,7 @@
         <div class="tabs">
             <button class="tab active" onclick="showTab('booking')">Prendre RDV</button>
             <button class="tab" onclick="showTab('dashboard')">Tableau de bord</button>
-            <button class="tab" onclick="showTab('admin')">Administration</button>
+            <button class="tab" onclick="showTab('admin')" id="adminTab">Administration 🔒</button>
         </div>
 
         <div id="booking" class="tab-content active">
@@ -372,25 +372,99 @@
         </div>
 
         <div id="admin" class="tab-content">
-            <div class="admin-section">
-                <h3>🔧 Administration</h3>
-                <p>Cette section permet de gérer les rendez-vous et d'exporter les données.</p>
+            <div id="adminLogin" class="admin-section">
+                <h3>🔐 Accès Administration</h3>
+                <p>Cette section est réservée à l'organisateur.</p>
+                <div class="form-group">
+                    <label for="adminPassword">Mot de passe :</label>
+                    <input type="password" id="adminPassword" placeholder="Entrez le mot de passe">
+                    <button class="btn" onclick="checkAdminPassword()" style="margin-top: 10px;">Se connecter</button>
+                </div>
+                <div id="loginError" style="display: none; color: #721c24; margin-top: 10px; font-weight: 500;"></div>
             </div>
 
-            <div class="form-group">
-                <button class="btn" onclick="exportData()">📥 Exporter les données</button>
-                <button class="btn" onclick="clearAllData()" style="background: #e74c3c; margin-left: 10px;">🗑️ Effacer toutes les données</button>
-            </div>
+            <div id="adminPanel" style="display: none;">
+                <div class="admin-section">
+                    <h3>🔧 Administration</h3>
+                    <p>Cette section permet de gérer les rendez-vous et d'exporter les données.</p>
+                    <button class="btn" onclick="logoutAdmin()" style="background: #6c757d; float: right;">🚪 Déconnexion</button>
+                    <div style="clear: both;"></div>
+                </div>
 
-            <div class="form-group">
-                <label>Importer des données :</label>
-                <input type="file" id="importFile" accept=".json">
-                <button class="btn" onclick="importData()" style="margin-top: 10px;">📤 Importer</button>
+                <div class="admin-section" style="background: #e7f3ff; border: 1px solid #b8daff;">
+                    <h4>🌐 Configuration de la synchronisation</h4>
+                    <p><strong>Statut actuel :</strong> <span id="syncStatus">Mode local uniquement</span></p>
+                    <div style="margin-top: 10px;">
+                        <button class="btn" onclick="showFirebaseInstructions()" style="background: #ff9800;">⚙️ Configurer Firebase</button>
+                        <button class="btn" onclick="testConnection()" style="background: #2196f3; margin-left: 10px;">🔗 Tester la connexion</button>
+                    </div>
+                    <div id="firebaseInstructions" style="display: none; margin-top: 15px; padding: 15px; background: #fff3cd; border-radius: 5px;">
+                        <h5>Configuration Firebase (Base de données temps réel)</h5>
+                        <ol>
+                            <li>Créez un projet sur <a href="https://console.firebase.google.com" target="_blank">Firebase Console</a></li>
+                            <li>Activez "Realtime Database" en mode test</li>
+                            <li>Copiez votre configuration dans le code source</li>
+                            <li>Changez <code>useFirebase = false</code> vers <code>true</code></li>
+                        </ol>
+                        <p><strong>Avantages :</strong> Synchronisation temps réel, gratuit jusqu'à 1 GB, sauvegarde automatique</p>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <button class="btn" onclick="exportData()">📥 Exporter JSON</button>
+                    <button class="btn" onclick="exportToExcel()" style="background: #28a745; margin-left: 10px;">📊 Exporter Excel</button>
+                    <button class="btn" onclick="clearAllData()" style="background: #e74c3c; margin-left: 10px;">🗑️ Effacer toutes les données</button>
+                </div>
+
+                <div class="form-group">
+                    <label>Importer des données :</label>
+                    <input type="file" id="importFile" accept=".json">
+                    <button class="btn" onclick="importData()" style="margin-top: 10px;">📤 Importer</button>
+                </div>
+
+                <div class="form-group">
+                    <button class="btn" onclick="sendReminders()" style="background: #17a2b8;">📧 Envoyer rappels</button>
+                    <button class="btn" onclick="generateReport()" style="background: #28a745; margin-left: 10px;">📊 Générer rapport</button>
+                    <button class="btn" onclick="manualSync()" style="background: #6f42c1; margin-left: 10px;">🔄 Synchronisation manuelle</button>
+                </div>
             </div>
         </div>
     </div>
 
-    <script>
+    <script type="module">
+        // Configuration Firebase modulaire (moderne)
+        // Importation depuis CDN
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js';
+        import { getDatabase, ref, set, get, onValue } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js';
+
+        // Configuration Firebase (à personnaliser avec vos clés)
+        const firebaseConfig = {
+            apiKey: "AIzaSyAeZ6V3aRT7WViK4q0Vu997sBtPc2OL-Z0",
+            authDomain: "rdv-onepoint.firebaseapp.com",
+            databaseURL: "https://rdv-onepoint-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "rdv-onepoint",
+            storageBucket: "rdv-onepoint.firebasestorage.app",
+            messagingSenderId: "598781382226",
+            appId: "1:598781382226:web:7ffbbe4a60d0159cca998b"
+        };
+
+        // Variables globales
+        let app, database;
+        let useFirebase = false; // Basculer vers true quand Firebase est configuré
+        
+        // Initialiser Firebase si configuré
+        try {
+            if (firebaseConfig.apiKey !== "AIzaSyAeZ6V3aRT7WViK4q0Vu997sBtPc2OL-Z") {
+                app = initializeApp(firebaseConfig);
+                database = getDatabase(app);
+                useFirebase = true;
+                console.log("Firebase initialisé avec succès");
+            }
+        } catch (error) {
+            console.log("Firebase non configuré, utilisation du stockage local");
+            useFirebase = false;
+        }
+
         // Données des collègues
         const colleagues = [
             {name: "M. Christian BACHIR-BEY", email: "cbachirbey@estp.fr", process: "MLP"},
@@ -421,15 +495,106 @@
         ];
 
         // Stockage des rendez-vous
-        let appointments = JSON.parse(localStorage.getItem('appointments') || '[]');
+        let appointments = [];
+
+        // Variables d'administration
+        let isAdminLoggedIn = false;
+        const adminPasswords = {
+            'admin2025': 'Mot de passe administrateur principal',
+            'onepoint': 'Mot de passe spécifique OnePoint',
+            'estp-admin': 'Mot de passe ESTP'
+        };
+
+        // ========================================
+        // FONCTIONS DE PERSISTANCE
+        // ========================================
+
+        // Charger les données
+        async function loadAppointments() {
+            if (useFirebase) {
+                try {
+                    const appointmentsRef = ref(database, 'appointments');
+                    const snapshot = await get(appointmentsRef);
+                    appointments = snapshot.val() || [];
+                    console.log("Données chargées depuis Firebase:", appointments.length, "rendez-vous");
+                    return appointments;
+                } catch (error) {
+                    console.error("Erreur chargement Firebase:", error);
+                    // Fallback vers localStorage
+                    appointments = JSON.parse(localStorage.getItem('appointments') || '[]');
+                    return appointments;
+                }
+            } else {
+                appointments = JSON.parse(localStorage.getItem('appointments') || '[]');
+                return appointments;
+            }
+        }
+
+        // Sauvegarder les données
+        async function saveAppointments() {
+            if (useFirebase) {
+                try {
+                    const appointmentsRef = ref(database, 'appointments');
+                    await set(appointmentsRef, appointments);
+                    console.log("Données sauvegardées dans Firebase");
+                    // Sauvegarde locale de backup
+                    localStorage.setItem('appointments', JSON.stringify(appointments));
+                    return true;
+                } catch (error) {
+                    console.error("Erreur sauvegarde Firebase:", error);
+                    // Fallback vers localStorage
+                    localStorage.setItem('appointments', JSON.stringify(appointments));
+                    return false;
+                }
+            } else {
+                localStorage.setItem('appointments', JSON.stringify(appointments));
+                return true;
+            }
+        }
+
+        // Écouter les changements en temps réel (Firebase)
+        function setupRealtimeListener() {
+            if (useFirebase) {
+                const appointmentsRef = ref(database, 'appointments');
+                onValue(appointmentsRef, (snapshot) => {
+                    const newAppointments = snapshot.val() || [];
+                    if (JSON.stringify(newAppointments) !== JSON.stringify(appointments)) {
+                        appointments = newAppointments;
+                        renderSlots();
+                        updateDashboard();
+                        console.log("Données mises à jour en temps réel");
+                        
+                        // Notification visuelle
+                        showMessage("Données mises à jour automatiquement", "success");
+                    }
+                });
+            }
+        }
 
         // Initialisation
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Afficher le statut de connexion
+            const statusDiv = document.createElement('div');
+            statusDiv.style.cssText = 'position: fixed; top: 10px; right: 10px; background: #28a745; color: white; padding: 8px 12px; border-radius: 5px; font-size: 0.9em; z-index: 1000;';
+            statusDiv.textContent = useFirebase ? '🟢 Synchronisation en temps réel' : '🟡 Mode local';
+            document.body.appendChild(statusDiv);
+            
             populateColleagues();
+            
+            // Charger les données au démarrage
+            await loadAppointments();
             renderSlots();
             updateDashboard();
             
+            // Configurer l'écoute temps réel
+            setupRealtimeListener();
+            
             document.getElementById('appointmentForm').addEventListener('submit', handleBooking);
+            
+            // Vérifier si admin est déjà connecté
+            if (localStorage.getItem('adminSession') === 'true') {
+                isAdminLoggedIn = true;
+            }
         });
 
         function populateColleagues() {
@@ -511,7 +676,7 @@
             });
         }
 
-        function handleBooking(e) {
+        async function handleBooking(e) {
             e.preventDefault();
             
             const email = document.getElementById('attendeeSelect').value;
@@ -553,7 +718,11 @@
             }
             
             // Sauvegarder et mettre à jour l'affichage
-            localStorage.setItem('appointments', JSON.stringify(appointments));
+            const saved = await saveAppointments();
+            if (!saved) {
+                showMessage('Attention : sauvegarde en mode local uniquement', 'error');
+            }
+            
             renderSlots();
             updateDashboard();
             
@@ -663,6 +832,16 @@
                 tab.classList.remove('active');
             });
             
+            // Vérification pour l'onglet admin
+            if (tabName === 'admin' && !isAdminLoggedIn) {
+                document.getElementById('adminLogin').style.display = 'block';
+                document.getElementById('adminPanel').style.display = 'none';
+            } else if (tabName === 'admin' && isAdminLoggedIn) {
+                document.getElementById('adminLogin').style.display = 'none';
+                document.getElementById('adminPanel').style.display = 'block';
+                updateSyncStatus(); // Mettre à jour le statut de sync
+            }
+            
             // Activer l'onglet et le contenu sélectionnés
             document.getElementById(tabName).classList.add('active');
             event.target.classList.add('active');
@@ -671,6 +850,44 @@
             if (tabName === 'dashboard') {
                 updateDashboard();
             }
+        }
+
+        function checkAdminPassword() {
+            const password = document.getElementById('adminPassword').value;
+            const errorDiv = document.getElementById('loginError');
+            
+            if (adminPasswords[password]) {
+                isAdminLoggedIn = true;
+                localStorage.setItem('adminSession', 'true');
+                document.getElementById('adminLogin').style.display = 'none';
+                document.getElementById('adminPanel').style.display = 'block';
+                document.getElementById('adminPassword').value = '';
+                errorDiv.style.display = 'none';
+                
+                // Ajouter un message de bienvenue
+                showMessage('Connexion administrateur réussie !', 'success');
+            } else {
+                errorDiv.textContent = 'Mot de passe incorrect. Accès refusé.';
+                errorDiv.style.display = 'block';
+                document.getElementById('adminPassword').value = '';
+                
+                // Sécurité : délai après échec
+                setTimeout(() => {
+                    document.getElementById('adminPassword').disabled = false;
+                }, 1000);
+                document.getElementById('adminPassword').disabled = true;
+            }
+        }
+
+        function logoutAdmin() {
+            isAdminLoggedIn = false;
+            localStorage.removeItem('adminSession');
+            document.getElementById('adminLogin').style.display = 'block';
+            document.getElementById('adminPanel').style.display = 'none';
+            
+            // Retourner à l'onglet principal
+            showTab('booking');
+            showMessage('Déconnexion administrative effectuée.', 'success');
         }
 
         function exportData() {
@@ -700,29 +917,59 @@
             }
         }
 
-        function importData() {
-            const fileInput = document.getElementById('importFile');
-            const file = fileInput.files[0];
+        function sendReminders() {
+            const unconfirmedColleagues = colleagues.filter(colleague => 
+                !appointments.some(apt => apt.email === colleague.email)
+            );
             
-            if (!file) {
-                alert('Veuillez sélectionner un fichier à importer.');
+            if (unconfirmedColleagues.length === 0) {
+                alert('Tous les collègues ont déjà pris rendez-vous !');
                 return;
             }
             
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const data = JSON.parse(e.target.result);
-                    appointments = data.appointments || [];
-                    localStorage.setItem('appointments', JSON.stringify(appointments));
-                    renderSlots();
-                    updateDashboard();
-                    alert('Données importées avec succès !');
-                } catch (error) {
-                    alert('Erreur lors de l\'importation : fichier invalide.');
+            let emailList = unconfirmedColleagues.map(colleague => colleague.email).join('; ');
+            let emailBody = `Bonjour,\n\nRappel : merci de prendre rendez-vous pour les échanges OnePoint.\n\nLien : [URL de votre système]\n\nCordialement,\nHenri DESPRETZ`;
+            
+            // Ouvrir le client email par défaut
+            window.location.href = `mailto:${emailList}?subject=Rappel - Prise de rendez-vous OnePoint&body=${encodeURIComponent(emailBody)}`;
+        }
+
+        function generateReport() {
+            const totalSlots = timeSlots.reduce((sum, day) => sum + day.slots.length, 0);
+            const bookedSlots = appointments.length;
+            const availableSlots = totalSlots - bookedSlots;
+            
+            let reportContent = `RAPPORT - RENDEZ-VOUS ONEPOINT\n`;
+            reportContent += `Date de génération : ${new Date().toLocaleDateString('fr-FR')}\n\n`;
+            reportContent += `STATISTIQUES :\n`;
+            reportContent += `- Total créneaux : ${totalSlots}\n`;
+            reportContent += `- Créneaux réservés : ${bookedSlots}\n`;
+            reportContent += `- Créneaux disponibles : ${availableSlots}\n`;
+            reportContent += `- Taux de réservation : ${Math.round((bookedSlots/totalSlots)*100)}%\n\n`;
+            
+            reportContent += `RENDEZ-VOUS CONFIRMÉS :\n`;
+            appointments.forEach(apt => {
+                const [date, time] = apt.slot.split('_');
+                const dateObj = new Date(date);
+                const dayName = dateObj.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+                reportContent += `- ${dayName} ${time} : ${apt.name} (${apt.email})\n`;
+            });
+            
+            reportContent += `\nCOLLÈGUES SANS RENDEZ-VOUS :\n`;
+            colleagues.forEach(colleague => {
+                if (!appointments.some(apt => apt.email === colleague.email)) {
+                    reportContent += `- ${colleague.name} (${colleague.email})\n`;
                 }
-            };
-            reader.readAsText(file);
+            });
+            
+            // Télécharger le rapport
+            const blob = new Blob([reportContent], {type: 'text/plain'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `rapport-rdv-onepoint-${new Date().toISOString().split('T')[0]}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
         }
     </script>
 </body>
