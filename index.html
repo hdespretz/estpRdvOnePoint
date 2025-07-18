@@ -433,15 +433,15 @@
 
     <script>
         // Configuration Firebase (à personnaliser avec vos clés)
-        const firebaseConfig = {
-            apiKey: "AIzaSyAeZ6V3aRT7WViK4q0Vu997sBtPc2OL-Z0",
-            authDomain: "rdv-onepoint.firebaseapp.com",
-            databaseURL: "https://rdv-onepoint-default-rtdb.europe-west1.firebasedatabase.app",
-            projectId: "rdv-onepoint",
-            storageBucket: "rdv-onepoint.firebasestorage.app",
-            messagingSenderId: "598781382226",
-            appId: "1:598781382226:web:7ffbbe4a60d0159cca998b"
-        };
+    const firebaseConfig = {
+        apiKey: "AIzaSyAeZ6V3aRT7WViK4q0Vu997sBtPc2OL-Z0",
+        authDomain: "rdv-onepoint.firebaseapp.com",
+        databaseURL: "https://rdv-onepoint-default-rtdb.europe-west1.firebasedatabase.app",
+        projectId: "rdv-onepoint",
+        storageBucket: "rdv-onepoint.firebasestorage.app",
+        messagingSenderId: "598781382226",
+        appId: "1:598781382226:web:7ffbbe4a60d0159cca998b"
+    };
 
         // Variables globales
         let app, database;
@@ -587,6 +587,21 @@
             if (localStorage.getItem('adminSession') === 'true') {
                 isAdminLoggedIn = true;
             }
+
+            // Ajouter des gestionnaires d'événements pour les onglets
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const onclick = this.getAttribute('onclick');
+                    if (onclick) {
+                        // Extraire le nom de l'onglet de onclick="showTab('admin')"
+                        const match = onclick.match(/showTab\('([^']+)'\)/);
+                        if (match) {
+                            showTab(match[1]);
+                        }
+                    }
+                });
+            });
         });
 
         function populateColleagues() {
@@ -824,24 +839,36 @@
                 tab.classList.remove('active');
             });
             
-            // Vérification pour l'onglet admin
-            if (tabName === 'admin' && !isAdminLoggedIn) {
-                document.getElementById('adminLogin').style.display = 'block';
-                document.getElementById('adminPanel').style.display = 'none';
-            } else if (tabName === 'admin' && isAdminLoggedIn) {
-                document.getElementById('adminLogin').style.display = 'none';
-                document.getElementById('adminPanel').style.display = 'block';
-                updateSyncStatus(); // Mettre à jour le statut de sync
+            // Activer l'onglet cliqué
+            const clickedTab = event ? event.target : document.querySelector(`[onclick*="${tabName}"]`);
+            if (clickedTab) {
+                clickedTab.classList.add('active');
             }
             
-            // Activer l'onglet et le contenu sélectionnés
-            document.getElementById(tabName).classList.add('active');
-            event.target.classList.add('active');
+            // Afficher le contenu correspondant
+            const tabContent = document.getElementById(tabName);
+            if (tabContent) {
+                tabContent.classList.add('active');
+            }
+            
+            // Logique spéciale pour l'onglet admin
+            if (tabName === 'admin') {
+                if (!isAdminLoggedIn) {
+                    document.getElementById('adminLogin').style.display = 'block';
+                    document.getElementById('adminPanel').style.display = 'none';
+                } else {
+                    document.getElementById('adminLogin').style.display = 'none';
+                    document.getElementById('adminPanel').style.display = 'block';
+                    updateSyncStatus(); // Mettre à jour le statut de sync
+                }
+            }
             
             // Mettre à jour le dashboard si nécessaire
             if (tabName === 'dashboard') {
                 updateDashboard();
             }
+            
+            console.log(`Onglet ${tabName} activé`); // Debug
         }
 
         function checkAdminPassword() {
