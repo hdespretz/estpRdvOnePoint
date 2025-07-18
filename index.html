@@ -391,6 +391,25 @@
                     <div style="clear: both;"></div>
                 </div>
 
+                <div class="admin-section" style="background: #e7f3ff; border: 1px solid #b8daff;">
+                    <h4>🌐 Configuration de la synchronisation</h4>
+                    <p><strong>Statut actuel :</strong> <span id="syncStatus">Mode local uniquement</span></p>
+                    <div style="margin-top: 10px;">
+                        <button class="btn" onclick="showFirebaseInstructions()" style="background: #ff9800;">⚙️ Configurer Firebase</button>
+                        <button class="btn" onclick="testConnection()" style="background: #2196f3; margin-left: 10px;">🔗 Tester la connexion</button>
+                    </div>
+                    <div id="firebaseInstructions" style="display: none; margin-top: 15px; padding: 15px; background: #fff3cd; border-radius: 5px;">
+                        <h5>Configuration Firebase (Base de données temps réel)</h5>
+                        <ol>
+                            <li>Créez un projet sur <a href="https://console.firebase.google.com" target="_blank">Firebase Console</a></li>
+                            <li>Activez "Realtime Database" en mode test</li>
+                            <li>Copiez votre configuration dans le code source</li>
+                            <li>Changez <code>useFirebase = false</code> vers <code>true</code></li>
+                        </ol>
+                        <p><strong>Avantages :</strong> Synchronisation temps réel, gratuit jusqu'à 1 GB, sauvegarde automatique</p>
+                    </div>
+                </div>
+
                 <div class="form-group">
                     <button class="btn" onclick="exportData()">📥 Exporter JSON</button>
                     <button class="btn" onclick="exportToExcel()" style="background: #28a745; margin-left: 10px;">📊 Exporter Excel</button>
@@ -406,12 +425,46 @@
                 <div class="form-group">
                     <button class="btn" onclick="sendReminders()" style="background: #17a2b8;">📧 Envoyer rappels</button>
                     <button class="btn" onclick="generateReport()" style="background: #28a745; margin-left: 10px;">📊 Générer rapport</button>
+                    <button class="btn" onclick="manualSync()" style="background: #6f42c1; margin-left: 10px;">🔄 Synchronisation manuelle</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <script>
+    <script type="module">
+        // Configuration Firebase modulaire (moderne)
+        // Importation depuis CDN
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js';
+        import { getDatabase, ref, set, get, onValue } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js';
+
+        // Configuration Firebase (à personnaliser avec vos clés)
+        const firebaseConfig = {
+            apiKey: "AIzaSyAeZ6V3aRT7WViK4q0Vu997sBtPc2OL-Z0",
+            authDomain: "rdv-onepoint.firebaseapp.com",
+            databaseURL: "https://rdv-onepoint-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "rdv-onepoint",
+            storageBucket: "rdv-onepoint.firebasestorage.app",
+            messagingSenderId: "598781382226",
+            appId: "1:598781382226:web:7ffbbe4a60d0159cca998b"
+        };
+
+        // Variables globales
+        let app, database;
+        let useFirebase = false; // Basculer vers true quand Firebase est configuré
+        
+        // Initialiser Firebase si configuré
+        try {
+            if (firebaseConfig.apiKey !== "AIzaSyAeZ6V3aRT7WViK4q0Vu997sBtPc2OL-Z") {
+                app = initializeApp(firebaseConfig);
+                database = getDatabase(app);
+                useFirebase = true;
+                console.log("Firebase initialisé avec succès");
+            }
+        } catch (error) {
+            console.log("Firebase non configuré, utilisation du stockage local");
+            useFirebase = false;
+        }
+
         // Données des collègues
         const colleagues = [
             {name: "M. Christian BACHIR-BEY", email: "cbachirbey@estp.fr", process: "MLP"},
@@ -442,7 +495,7 @@
         ];
 
         // Stockage des rendez-vous
-        let appointments = JSON.parse(localStorage.getItem('appointments') || '[]');
+        let appointments = [];
 
         // Variables d'administration
         let isAdminLoggedIn = false;
@@ -452,11 +505,89 @@
             'estp-admin': 'Mot de passe ESTP'
         };
 
+        // ========================================
+        // FONCTIONS DE PERSISTANCE
+        // ========================================
+
+        // Charger les données
+        async function loadAppointments() {
+            if (useFirebase) {
+                try {
+                    const appointmentsRef = ref(database, 'appointments');
+                    const snapshot = await get(appointmentsRef);
+                    appointments = snapshot.val() || [];
+                    console.log("Données chargées depuis Firebase:", appointments.length, "rendez-vous");
+                    return appointments;
+                } catch (error) {
+                    console.error("Erreur chargement Firebase:", error);
+                    // Fallback vers localStorage
+                    appointments = JSON.parse(localStorage.getItem('appointments') || '[]');
+                    return appointments;
+                }
+            } else {
+                appointments = JSON.parse(localStorage.getItem('appointments') || '[]');
+                return appointments;
+            }
+        }
+
+        // Sauvegarder les données
+        async function saveAppointments() {
+            if (useFirebase) {
+                try {
+                    const appointmentsRef = ref(database, 'appointments');
+                    await set(appointmentsRef, appointments);
+                    console.log("Données sauvegardées dans Firebase");
+                    // Sauvegarde locale de backup
+                    localStorage.setItem('appointments', JSON.stringify(appointments));
+                    return true;
+                } catch (error) {
+                    console.error("Erreur sauvegarde Firebase:", error);
+                    // Fallback vers localStorage
+                    localStorage.setItem('appointments', JSON.stringify(appointments));
+                    return false;
+                }
+            } else {
+                localStorage.setItem('appointments', JSON.stringify(appointments));
+                return true;
+            }
+        }
+
+        // Écouter les changements en temps réel (Firebase)
+        function setupRealtimeListener() {
+            if (useFirebase) {
+                const appointmentsRef = ref(database, 'appointments');
+                onValue(appointmentsRef, (snapshot) => {
+                    const newAppointments = snapshot.val() || [];
+                    if (JSON.stringify(newAppointments) !== JSON.stringify(appointments)) {
+                        appointments = newAppointments;
+                        renderSlots();
+                        updateDashboard();
+                        console.log("Données mises à jour en temps réel");
+                        
+                        // Notification visuelle
+                        showMessage("Données mises à jour automatiquement", "success");
+                    }
+                });
+            }
+        }
+
         // Initialisation
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Afficher le statut de connexion
+            const statusDiv = document.createElement('div');
+            statusDiv.style.cssText = 'position: fixed; top: 10px; right: 10px; background: #28a745; color: white; padding: 8px 12px; border-radius: 5px; font-size: 0.9em; z-index: 1000;';
+            statusDiv.textContent = useFirebase ? '🟢 Synchronisation en temps réel' : '🟡 Mode local';
+            document.body.appendChild(statusDiv);
+            
             populateColleagues();
+            
+            // Charger les données au démarrage
+            await loadAppointments();
             renderSlots();
             updateDashboard();
+            
+            // Configurer l'écoute temps réel
+            setupRealtimeListener();
             
             document.getElementById('appointmentForm').addEventListener('submit', handleBooking);
             
@@ -545,7 +676,7 @@
             });
         }
 
-        function handleBooking(e) {
+        async function handleBooking(e) {
             e.preventDefault();
             
             const email = document.getElementById('attendeeSelect').value;
@@ -587,7 +718,11 @@
             }
             
             // Sauvegarder et mettre à jour l'affichage
-            localStorage.setItem('appointments', JSON.stringify(appointments));
+            const saved = await saveAppointments();
+            if (!saved) {
+                showMessage('Attention : sauvegarde en mode local uniquement', 'error');
+            }
+            
             renderSlots();
             updateDashboard();
             
@@ -704,6 +839,7 @@
             } else if (tabName === 'admin' && isAdminLoggedIn) {
                 document.getElementById('adminLogin').style.display = 'none';
                 document.getElementById('adminPanel').style.display = 'block';
+                updateSyncStatus(); // Mettre à jour le statut de sync
             }
             
             // Activer l'onglet et le contenu sélectionnés
